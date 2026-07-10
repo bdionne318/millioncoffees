@@ -1770,7 +1770,7 @@ function StatsView({ entries, currentUser, isPro=false, onUpgrade }) {
         {[["overview","Overview"],["badges","Badges"],["palate","My Palate"],["recs","Bean Matches"]].map(([id,label])=>(
           <button key={id} className={`stab ${tab===id?"active":""}`} onClick={()=>setTab(id)} style={{position:"relative"}}>
             {label}
-            {!isPro&&(id==="palate"||id==="recs")&&<span style={{position:"absolute",top:-4,right:-4,fontSize:8,background:"var(--rose)",color:"#fff",borderRadius:10,padding:"1px 4px",fontFamily:"'Inter',sans-serif"}}>Pro</span>}
+            
           </button>
         ))}
       </div>
@@ -1834,9 +1834,7 @@ function StatsView({ entries, currentUser, isPro=false, onUpgrade }) {
 
       {tab==="badges"&&<BadgesPanel entries={entries}/>}
 
-      {tab==="palate"&&(!isPro
-        ?<PaywallGate feature="Your Palate Profile" reason="See a visual radar chart of your flavour fingerprint, your dominant families, and how your tastes have shifted over time." onUpgrade={onUpgrade}/>
-        :<>
+      {tab==="palate"&&(<>
         <div className="radar-card"><div className="radar-title">Your Palate Profile</div><div className="radar-sub">Weighted by score — higher-scored coffees shape your profile more. {entries.length} entries.</div><RadarChart profile={palate} size={240}/></div>
         <div className="insight-banner"><div className="insight-title">Dominant family: {topFam}</div><div className="insight-body">You gravitate towards <strong>{topTwo.join(" and ")}</strong> flavours. Look for {topTwo[0]==="Fruit"?"naturals and anaerobic-process beans":topTwo[0]==="Floral"?"light-roasted washed Ethiopians and Geshas":topTwo[0]==="Sweet"?"honey-processed and medium-roasted beans":topTwo[0]==="Nutty"?"Brazilian naturals and medium roasts":topTwo[0]==="Roast"?"medium-dark and dark roasts":"Indonesian and Yemeni origins"} to satisfy your palate.</div></div>
         <div className="bar-card"><div className="bar-card-title">Flavour Family Scores</div><div className="bar-card-sub">Each score out of 10, weighted by your composite score</div>{famScores.map(({k,v})=><FamilyBar key={k} family={k} value={v}/>)}</div>
@@ -1845,9 +1843,7 @@ function StatsView({ entries, currentUser, isPro=false, onUpgrade }) {
       </>
       )}
 
-      {tab==="recs"&&(!isPro
-        ?<PaywallGate feature="Bean Recommendations" reason="Get personalised bean matches based on your palate profile — ranked by cosine similarity across all 6 flavour families." onUpgrade={onUpgrade}/>
-        :<>
+      {tab==="recs"&&(<>
         <div className="section-hdr"><div className="section-title">Beans for You</div><div className="section-sub">Matched by cosine similarity across all 6 flavour families</div></div>
         <div className="insight-banner" style={{marginBottom:14}}><div className="insight-title">How this works</div><div className="insight-body">Every scored coffee refines your palate vector. Higher-scored coffees contribute more weight. The match percentage compares your vector against each bean's flavour fingerprint.</div></div>
         {recs.map((bean,i)=>{
