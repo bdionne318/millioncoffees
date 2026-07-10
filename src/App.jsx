@@ -928,10 +928,9 @@ function PlacesAutocomplete({ value, onSelect, placeholder }) {
         const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
           input: text,
           sessionToken: tokenRef.current,
-          includedPrimaryTypes: ["establishment"],
         });
         setPredictions(suggestions||[]);
-      } catch(err){ console.warn("Places autocomplete error:",err); setPredictions([]); }
+      } catch(err){ console.error("Places autocomplete error:",err); setPredictions([]); }
     },250);
   };
 
