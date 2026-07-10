@@ -882,18 +882,35 @@ function NotePicker({ value=[], onChange }) {
 // Requires VITE_GOOGLE_MAPS_KEY in your .env file.
 const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY || 'AIzaSyDsGpeS5hx_cEXTTDAiSKGOWQvAdF6BSa4';
 let googleMapsPromise = null;
+// Official Google "inline bootstrap" loader for the new Places API. This guarantees
+// google.maps.importLibrary() exists, which the legacy <script> tag approach does not.
 function loadGoogleMaps() {
   if(googleMapsPromise) return googleMapsPromise;
   if(!GOOGLE_MAPS_KEY) return Promise.reject(new Error("No Google Maps key"));
   googleMapsPromise = new Promise((resolve,reject)=>{
-    if(window.google?.maps?.places){ resolve(window.google.maps); return; }
-    const script=document.createElement("script");
-    // loading=async is required by the new Places API
-    script.src=`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&loading=async&v=weekly`;
-    script.async=true; script.defer=true;
-    script.onload=()=>resolve(window.google.maps);
-    script.onerror=()=>reject(new Error("Failed to load Google Maps"));
-    document.head.appendChild(script);
+    try {
+      // If the bootstrap already ran, just use it.
+      if(window.google?.maps?.importLibrary){ resolve(window.google.maps); return; }
+      // Inline bootstrap (adapted from Google's official snippet).
+      ((g)=>{
+        let h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;
+        b=b[c]||(b[c]={});
+        const d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,
+        u=()=>h||(h=new Promise(async(f,n)=>{
+          await (a=m.createElement("script"));
+          e.set("libraries",[...r]+"");
+          for(k in g) e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);
+          e.set("callback",c+".maps."+q);
+          a.src=`https://maps.${c}apis.com/maps/api/js?`+e;
+          d[q]=f;
+          a.onerror=()=>h=n(Error(p+" could not load."));
+          a.nonce=m.querySelector("script[nonce]")?.nonce||"";
+          m.head.append(a);
+        }));
+        d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n));
+      })({ key: GOOGLE_MAPS_KEY, v: "weekly" });
+      resolve(window.google.maps);
+    } catch(err){ reject(err); }
   });
   return googleMapsPromise;
 }
@@ -910,10 +927,10 @@ function PlacesAutocomplete({ value, onSelect, placeholder }) {
 
   useEffect(()=>{
     if(!GOOGLE_MAPS_KEY) return;
-    loadGoogleMaps().then(async maps=>{
-      // The new Places API lives on the object returned by importLibrary,
-      // NOT reliably on maps.places — so store the returned library directly.
-      const placesLib = await maps.importLibrary("places");
+    loadGoogleMaps().then(async ()=>{
+      // Use the global importLibrary from the async bootstrap. It returns the
+      // Places library object containing AutocompleteSuggestion + session token.
+      const placesLib = await window.google.maps.importLibrary("places");
       mapsRef.current = placesLib;
     }).catch((e)=>{ console.error("Maps places load failed:",e); mapsRef.current=null; });
   },[]);
