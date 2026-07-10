@@ -911,10 +911,11 @@ function PlacesAutocomplete({ value, onSelect, placeholder }) {
   useEffect(()=>{
     if(!GOOGLE_MAPS_KEY) return;
     loadGoogleMaps().then(async maps=>{
-      // Import the Places library (new API uses importLibrary)
-      await maps.importLibrary("places");
-      mapsRef.current=maps;
-    }).catch(()=>{ mapsRef.current=null; });
+      // The new Places API lives on the object returned by importLibrary,
+      // NOT reliably on maps.places — so store the returned library directly.
+      const placesLib = await maps.importLibrary("places");
+      mapsRef.current = placesLib;
+    }).catch((e)=>{ console.error("Maps places load failed:",e); mapsRef.current=null; });
   },[]);
 
   const search=(text)=>{
@@ -923,7 +924,7 @@ function PlacesAutocomplete({ value, onSelect, placeholder }) {
     if(!mapsRef.current||!text||text.length<2){ setPredictions([]); return; }
     debounceRef.current=setTimeout(async()=>{
       try {
-        const { AutocompleteSuggestion, AutocompleteSessionToken } = mapsRef.current.places;
+        const { AutocompleteSuggestion, AutocompleteSessionToken } = mapsRef.current;
         if(!tokenRef.current) tokenRef.current=new AutocompleteSessionToken();
         const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
           input: text,
