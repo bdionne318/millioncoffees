@@ -594,6 +594,8 @@ body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--ink);min-he
 .flabel{font-size:12px;color:var(--ink2);margin-bottom:5px;display:block;font-family:'Fraunces',serif;}
 .fgrp{margin-bottom:12px;}
 .finput{width:100%;padding:11px 0;background:none;border:none;border-bottom:1px solid var(--line);border-radius:0;font-family:'Inter',sans-serif;font-size:16px;color:var(--ink);outline:none;transition:border-color 0.15s;-webkit-appearance:none;appearance:none;}
+.finput-search{padding:13px 15px;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;font-size:15px;}
+.finput-search:focus{border-color:var(--accent);background:#fff;}
 .finput:focus{border-bottom-color:var(--accent);}
 .finput:focus{border-color:var(--navy);}
 textarea.finput{resize:vertical;min-height:80px;line-height:1.5;}
@@ -984,7 +986,7 @@ function PlacesAutocomplete({ value, onSelect, placeholder }) {
 
   return (
     <div style={{position:"relative"}}>
-      <input className="finput" placeholder={placeholder||"Search for a café…"} value={query}
+      <input className="finput finput-search" placeholder={placeholder||"Search cafés by name or place…"} value={query}
         onChange={ev=>search(ev.target.value)} onFocus={()=>setOpen(true)}
         onBlur={()=>setTimeout(()=>setOpen(false),200)}/>
       {open&&predictions.length>0&&(
@@ -1159,7 +1161,7 @@ function LogForm({ onSave, onClose, currentUser, editEntry }) {
           {!isHome&&<>
             <div className="lf-section-lbl">Where you had it</div>
             <div className="lf-field">
-              <PlacesAutocomplete value={e.cafeName} placeholder="Search for Radio Roasters…"
+              <PlacesAutocomplete value={e.cafeName} placeholder="Search cafés by name or place…"
                 onSelect={place=>{
                   s("cafeName",place.name||"");
                   if(place.address){ s("cafeAddress",place.address); s("cafeLocation",place.address); }
@@ -1645,6 +1647,38 @@ function computeBadges(entries) {
     simple("Tastemaker","Community",publicCount,10,"public logs"),
     simple("Café Critic","Community",cafeRated,10,"cafés rated"),
     simple("Local Guide","Community",cities,3,"cities"),
+    // Pass 2 additions
+    (()=>{ // Continental — a coffee from Africa, Americas, and Asia-Pacific
+      const AFRICA=["ethiopia","kenya","rwanda","burundi","tanzania","uganda","congo","drc"];
+      const AMERICAS=["colombia","brazil","guatemala","costa rica","panama","peru","honduras","el salvador","nicaragua","mexico","bolivia","ecuador"];
+      const ASIA=["indonesia","sumatra","java","sulawesi","vietnam","india","papua new guinea","png","yemen","timor","thailand","laos","china"];
+      const regs=new Set();
+      E.forEach(e=>{ const o=(e.origin||e.customOrigin||"").toLowerCase(); if(!o)return;
+        if(AFRICA.some(x=>o.includes(x)))regs.add("africa");
+        if(AMERICAS.some(x=>o.includes(x)))regs.add("americas");
+        if(ASIA.some(x=>o.includes(x)))regs.add("asia"); });
+      return { name:"Continental", group:"Exploration", earned:regs.size>=3, current:regs.size, target:3, hint:regs.size>=3?null:`${3-regs.size} region${3-regs.size===1?"":"s"} to go` };
+    })(),
+    (()=>{ // Light & Dark — log across the roast spectrum (light, medium, dark)
+      const r=new Set(E.map(e=>(e.roastLevel||"").toLowerCase()).filter(Boolean));
+      const light=[...r].some(x=>x.includes("light"));
+      const med=[...r].some(x=>x.includes("medium")||x.includes("med"));
+      const dark=[...r].some(x=>x.includes("dark"));
+      const cur=[light,med,dark].filter(Boolean).length;
+      return { name:"Light & Dark", group:"Exploration", earned:cur>=3, current:cur, target:3, hint:cur>=3?null:"Log light, medium & dark roasts" };
+    })(),
+    (()=>{ // Weekend Ritual — logged on 10 weekend days
+      const wk=E.filter(e=>{ const d=new Date(e.date); return !isNaN(d)&&(d.getDay()===0||d.getDay()===6); }).length;
+      return { name:"Weekend Ritual", group:"Journey", earned:wk>=10, current:wk, target:10, hint:wk>=10?null:`${10-wk} more weekend logs` };
+    })(),
+    (()=>{ // Anniversary — logged coffees spanning at least 365 days
+      const dates=E.map(e=>new Date(e.date)).filter(d=>!isNaN(d)).sort((a,b)=>a-b);
+      const span= dates.length>=2 ? (dates[dates.length-1]-dates[0])/86400000 : 0;
+      return { name:"Anniversary", group:"Journey", earned:span>=365, current:Math.min(Math.round(span),365), target:365, hint:span>=365?null:"Keep logging across the year" };
+    })(),
+    (()=>{ // Trailblazer — earned when you have public logs (proxy for being first to log something)
+      return { name:"Trailblazer", group:"Community", earned:publicCount>=5, current:Math.min(publicCount,5), target:5, hint:publicCount>=5?null:"Share more to blaze trails" };
+    })(),
   ];
 }
 
@@ -1704,6 +1738,8 @@ function StatsView({ entries, currentUser, isPro=false, onUpgrade }) {
   const palate=useMemo(()=>buildPalateProfile(entries),[entries]);
   const topFam=FAM_KEYS.reduce((a,k)=>palate[k]>palate[a]?k:a,FAM_KEYS[0]);
   const topTwo=FAM_KEYS.slice().sort((a,b)=>palate[b]-palate[a]).slice(0,2);
+  const hasPalateData=FAM_KEYS.some(k=>palate[k]>0);
+  const notesLogged=entries.reduce((n,e)=>n+((e.tastingNotes||[]).length),0);
   const recs=useMemo(()=>BEAN_CATALOGUE.map(b=>({...b,score:matchScore(palate,b.profile)})).sort((a,b)=>b.score-a.score).slice(0,6),[palate]);
 
   if(!entries.length) return <div className="empty"><span className="empty-icon">📊</span><div className="empty-t">No data yet</div><div className="empty-s">Log a few coffees with scores and tasting notes to unlock your palate profile and bean recommendations.</div></div>;
@@ -1851,16 +1887,20 @@ function StatsView({ entries, currentUser, isPro=false, onUpgrade }) {
 
       {tab==="badges"&&<BadgesPanel entries={entries}/>}
 
-      {tab==="palate"&&(<>
+      {tab==="palate"&&(hasPalateData?<>
         <div className="radar-card"><div className="radar-title">Your Palate Profile</div><div className="radar-sub">Weighted by score — higher-scored coffees shape your profile more. {entries.length} entries.</div><RadarChart profile={palate} size={240}/></div>
         <div className="insight-banner"><div className="insight-title">Dominant family: {topFam}</div><div className="insight-body">You gravitate towards <strong>{topTwo.join(" and ")}</strong> flavours. Look for {topTwo[0]==="Fruit"?"naturals and anaerobic-process beans":topTwo[0]==="Floral"?"light-roasted washed Ethiopians and Geshas":topTwo[0]==="Sweet"?"honey-processed and medium-roasted beans":topTwo[0]==="Nutty"?"Brazilian naturals and medium roasts":topTwo[0]==="Roast"?"medium-dark and dark roasts":"Indonesian and Yemeni origins"} to satisfy your palate.</div></div>
         <div className="bar-card"><div className="bar-card-title">Flavour Family Scores</div><div className="bar-card-sub">Each score out of 10, weighted by your composite score</div>{famScores.map(({k,v})=><FamilyBar key={k} family={k} value={v}/>)}</div>
         {topN.length>0&&<div className="bar-card"><div className="bar-card-title">Your Most-Noted Flavours</div><div className="bar-card-sub">Size reflects how often you log each note</div><div style={{display:"flex",flexWrap:"wrap",gap:5,marginTop:4}}>{topN.map(([n,c])=>{const fam=NOTE_TO_FAM[n];const def=NOTE_FAMILIES[fam]||{color:"#888",bg:"#f5f5f5",border:"#ddd"};return <span key={n} className="npill" style={{background:def.bg,color:def.color,border:`1px solid ${def.border}`,fontSize:11+Math.min(c*1.5,6),padding:`${3+Math.min(c,2)}px ${9+Math.min(c,3)}px`}}>{n}</span>;})}</div></div>}
         {topOR.length>0&&<div className="bar-card"><div className="bar-card-title">Your Preferred Origins</div><div className="bar-card-sub">Ranked by average composite score</div>{topOR.map(([o,avgR])=><div key={o} className="bar-row"><div className="bar-lbl">{o}</div><div className="bar-track"><div className="bar-fill" style={{width:`${(Number(avgR)/10)*100}%`}}/></div><div style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"var(--ink3)",width:28,flexShrink:0}}>{avgR}</div></div>)}</div>}
-      </>
-      )}
+      </>:(
+        <div style={{padding:"40px 0",textAlign:"center"}}>
+          <div style={{fontFamily:"var(--serif)",fontSize:19,fontStyle:"italic",color:"var(--ink2)",marginBottom:8}}>Your palate is still forming</div>
+          <div style={{fontFamily:"var(--sans)",fontSize:13,color:"var(--ink3)",lineHeight:1.6,maxWidth:280,margin:"0 auto"}}>Add tasting notes when you log coffees — flavours like blueberry, chocolate, or jasmine — and your palate profile will build itself here.{notesLogged>0?` (${notesLogged} note${notesLogged===1?"":"s"} so far.)`:""}</div>
+        </div>
+      ))}
 
-      {tab==="recs"&&(<>
+      {tab==="recs"&&(hasPalateData?<>
         <div className="section-hdr"><div className="section-title">Beans for You</div><div className="section-sub">Matched by cosine similarity across all 6 flavour families</div></div>
         <div className="insight-banner" style={{marginBottom:14}}><div className="insight-title">How this works</div><div className="insight-body">Every scored coffee refines your palate vector. Higher-scored coffees contribute more weight. The match percentage compares your vector against each bean's flavour fingerprint.</div></div>
         {recs.map((bean,i)=>{
@@ -1881,8 +1921,12 @@ function StatsView({ entries, currentUser, isPro=false, onUpgrade }) {
             </div>
           );
         })}
-      </>
-      )}
+      </>:(
+        <div style={{padding:"40px 0",textAlign:"center"}}>
+          <div style={{fontFamily:"var(--serif)",fontSize:19,fontStyle:"italic",color:"var(--ink2)",marginBottom:8}}>No matches yet</div>
+          <div style={{fontFamily:"var(--sans)",fontSize:13,color:"var(--ink3)",lineHeight:1.6,maxWidth:280,margin:"0 auto"}}>Bean recommendations are based on your palate. Add tasting notes to your logged coffees and personalised matches will appear here.</div>
+        </div>
+      ))}
     </>
   );
 }
@@ -3115,10 +3159,7 @@ export default function MillionCoffees() {
             })}
           </>}
           {tab==="rankings"&&<div className="community-wrap"><RankingsView currentUser={currentUser}/></div>}
-          {tab==="roasters"&&(isPro||!currentUser
-            ?<RoastersView palateProfile={palateProfile} onSelectRoaster={setSelRoaster}/>
-            :<PaywallGate feature="Roaster Matching" reason="See which roasters match your palate profile and get personalised recommendations." onUpgrade={()=>setShowPaywall(true)}/>
-          )}
+          {tab==="roasters"&&<RoastersView palateProfile={palateProfile} onSelectRoaster={setSelRoaster}/>}
           {tab==="recipes"&&<><div className="section-hdr"><div className="section-title">Brew Recipes</div></div><div className="rec-grid">{RECIPES.map(r=><div key={r.id} className="rec-card" onClick={()=>setSelRecipe(r)}><span className="rec-icon">{r.icon}</span><div className="rec-name">{r.name}</div><div className="rec-meta">{r.ratio} · {r.time}</div><div className="rec-diff">{r.difficulty}</div></div>)}</div></>}
           {tab==="stats"&&<StatsView entries={myEntries} currentUser={currentUser} isPro={isPro} onUpgrade={()=>setShowPaywall(true)}/>}
         </div>
