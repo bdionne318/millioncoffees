@@ -581,7 +581,8 @@ body{background:var(--bg);font-family:'Inter',sans-serif;color:var(--ink);min-he
 /* MODAL */
 .overlay{position:fixed;inset:0;background:rgba(26,18,8,0.45);z-index:200;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);}
 .modal{background:var(--bg);width:100%;max-width:480px;border-radius:18px 18px 0 0;max-height:93vh;overflow-y:auto;animation:up 0.28s cubic-bezier(0.32,0.72,0,1);}
-@keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}
+@keyframes badgePop{from{opacity:0;transform:translateX(-50%) translateY(12px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}}
 .modal-handle{width:40px;height:3px;background:var(--border);border-radius:2px;margin:12px auto 0;}
 .modal-hdr{padding:16px 20px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid var(--border);}
 .modal-title{font-family:'Fraunces',serif;font-size:20px;color:var(--ink);}
@@ -632,8 +633,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
 .det-body{padding:18px 20px 80px;}
 .dsec{margin-bottom:20px;}
 .dsec-title{font-family:'Inter',sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink3);margin-bottom:10px;font-weight:500;}
-.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.ditem{background:var(--surface);border-radius:var(--rsm);padding:10px 12px;border:1.5px solid var(--border);}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px;}
+.ditem{background:none;border-radius:0;padding:10px 0;border:none;border-bottom:1px solid var(--line);}
 .ditem-l{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;font-family:'DM Mono',monospace;}
 .ditem-v{font-size:14px;color:var(--ink);font-family:'Inter',sans-serif;font-weight:500;}
 .quote-block{background:var(--surface);border-radius:var(--r);padding:14px 16px;font-family:'Fraunces',serif;font-size:16px;font-style:italic;color:var(--ink2);line-height:1.6;border:1.5px solid var(--border);border-left:4px solid var(--navy);}
@@ -1468,7 +1469,17 @@ function EntryDetail({ entry, onBack, onEdit }) {
             return <div className="ditem" style={{borderColor:f.col+"40"}}><div className="ditem-l">Freshness</div><div className="ditem-v" style={{color:f.col}}>{f.label}<span style={{fontSize:11,color:"var(--ink3)",marginLeft:4}}>{f.desc}</span></div></div>;
           })()}
         </div></div>
-        {(entry.method||entry.machine)&&<div className="dsec"><div className="dsec-title">Brew</div><div className="dgrid">
+        {(entry.method||entry.machine)&&<div className="dsec"><div className="dsec-title">Brew</div>
+        {entry.type==="home"&&(entry.coffeeGrams||entry.yieldGrams||entry.waterTemp||entry.extractionTime)&&(
+          <div style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:12,padding:"16px 18px",marginBottom:14,display:"flex",flexWrap:"wrap",gap:"18px 26px",alignItems:"flex-end"}}>
+            {entry.coffeeGrams&&<div><div style={{fontFamily:"var(--mono)",fontSize:20,color:"var(--ink)"}}>{entry.coffeeGrams}<span style={{fontSize:12,color:"var(--ink3)"}}>g</span></div><div style={{fontFamily:"var(--sans)",fontSize:10,color:"var(--ink3)",letterSpacing:"1px",textTransform:"uppercase",marginTop:2}}>Dose</div></div>}
+            {entry.yieldGrams&&<div><div style={{fontFamily:"var(--mono)",fontSize:20,color:"var(--ink)"}}>{entry.yieldGrams}<span style={{fontSize:12,color:"var(--ink3)"}}>g</span></div><div style={{fontFamily:"var(--sans)",fontSize:10,color:"var(--ink3)",letterSpacing:"1px",textTransform:"uppercase",marginTop:2}}>Yield</div></div>}
+            {entry.coffeeGrams>0&&entry.yieldGrams>0&&<div><div style={{fontFamily:"var(--mono)",fontSize:20,color:"var(--accent)"}}>1:{(Number(entry.yieldGrams)/Number(entry.coffeeGrams)).toFixed(1)}</div><div style={{fontFamily:"var(--sans)",fontSize:10,color:"var(--ink3)",letterSpacing:"1px",textTransform:"uppercase",marginTop:2}}>Ratio</div></div>}
+            {entry.waterTemp&&<div><div style={{fontFamily:"var(--mono)",fontSize:20,color:"var(--ink)"}}>{entry.waterTemp}<span style={{fontSize:12,color:"var(--ink3)"}}>°</span></div><div style={{fontFamily:"var(--sans)",fontSize:10,color:"var(--ink3)",letterSpacing:"1px",textTransform:"uppercase",marginTop:2}}>Temp</div></div>}
+            {entry.extractionTime&&<div><div style={{fontFamily:"var(--mono)",fontSize:20,color:"var(--ink)"}}>{entry.extractionTime}</div><div style={{fontFamily:"var(--sans)",fontSize:10,color:"var(--ink3)",letterSpacing:"1px",textTransform:"uppercase",marginTop:2}}>Time</div></div>}
+          </div>
+        )}
+        <div className="dgrid">
           {entry.method&&<div className="ditem"><div className="ditem-l">Method</div><div className="ditem-v">{entry.method}</div></div>}
           {entry.machine&&<div className="ditem"><div className="ditem-l">Machine</div><div className="ditem-v">{entry.machine}</div></div>}
           {entry.grinder&&<div className="ditem"><div className="ditem-l">Grinder</div><div className="ditem-v">{entry.grinder}</div></div>}
@@ -1595,6 +1606,25 @@ function RoasterDetail({ roaster, palateProfile, onBack }) {
 const GROUP_COLOR = { Exploration:"#6E7B5E", Craft:"#A85436", Journey:"#B08328", Community:"#4A6C8C" };
 
 // Each badge computes {earned, current, target, hint} from the user's entries.
+function computeStreak(entries) {
+  // Gentle weekly streak: consecutive ISO weeks with at least one log, counting back from this week.
+  const E=entries||[];
+  if(!E.length) return { current:0, weeksActive:0 };
+  const weekKey=(d)=>{ const x=new Date(d); if(isNaN(x))return null; const onejan=new Date(x.getFullYear(),0,1); return x.getFullYear()+"-"+String(Math.ceil((((x-onejan)/86400000)+onejan.getDay()+1)/7)).padStart(2,"0"); };
+  const weeks=new Set(E.map(e=>weekKey(e.date)).filter(Boolean));
+  const weeksActive=weeks.size;
+  // current streak: count back from current week while each week is present
+  let streak=0; let cursor=new Date();
+  for(let i=0;i<520;i++){ // cap at 10 years
+    const k=weekKey(cursor);
+    if(weeks.has(k)) streak++;
+    else if(i>0) break; // allow current week to be empty without breaking (grace)
+    else if(!weeks.has(k)){ /* this week empty — check last week continues streak */ }
+    cursor.setDate(cursor.getDate()-7);
+  }
+  return { current:streak, weeksActive };
+}
+
 function computeBadges(entries) {
   const E = entries||[];
   const has = E.length>0;
@@ -1740,6 +1770,24 @@ function BadgesPanel({ entries }) {
 function StatsView({ entries, currentUser, isPro=false, onUpgrade }) {
   const [tab,setTab]=useState("overview");
   const palate=useMemo(()=>buildPalateProfile(entries),[entries]);
+  const streak=useMemo(()=>computeStreak(entries),[entries]);
+  const brewStats=useMemo(()=>{
+    const home=entries.filter(e=>e.type==="home");
+    const withRatio=home.filter(e=>e.coffeeGrams>0&&e.yieldGrams>0);
+    const ratios=withRatio.map(e=>Number(e.yieldGrams)/Number(e.coffeeGrams)).filter(r=>r>0&&r<100);
+    const temps=home.map(e=>Number(e.waterTemp)).filter(t=>t>0);
+    const doses=home.map(e=>Number(e.coffeeGrams)).filter(d=>d>0);
+    const avg=arr=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:null;
+    // method distribution
+    const methods={}; home.forEach(e=>{ if(e.method){methods[e.method]=(methods[e.method]||0)+1;} });
+    const topMethod=Object.entries(methods).sort((a,b)=>b[1]-a[1])[0];
+    return {
+      homeCount:home.length,
+      avgRatio:avg(ratios), avgTemp:avg(temps), avgDose:avg(doses),
+      topMethod: topMethod?topMethod[0]:null,
+      hasData: home.length>0&&(ratios.length>0||temps.length>0||doses.length>0),
+    };
+  },[entries]);
   const topFam=FAM_KEYS.reduce((a,k)=>palate[k]>palate[a]?k:a,FAM_KEYS[0]);
   const topTwo=FAM_KEYS.slice().sort((a,b)=>palate[b]-palate[a]).slice(0,2);
   const hasPalateData=FAM_KEYS.some(k=>palate[k]>0);
@@ -1833,12 +1881,29 @@ function StatsView({ entries, currentUser, isPro=false, onUpgrade }) {
       </div>
 
       {tab==="overview"&&<>
+        {streak.current>=2&&<div style={{background:"var(--surface)",border:"1px solid var(--line)",borderRadius:12,padding:"14px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:12}}>
+          <div style={{fontFamily:"var(--serif)",fontSize:26,fontWeight:300,fontStyle:"italic",color:"var(--accent)"}}>{streak.current}</div>
+          <div>
+            <div style={{fontFamily:"var(--sans)",fontSize:13,color:"var(--ink)",fontWeight:500}}>{streak.current}-week streak</div>
+            <div style={{fontFamily:"var(--sans)",fontSize:12,color:"var(--ink3)"}}>You've logged {streak.weeksActive} week{streak.weeksActive===1?"":"s"} in all. Keep it gentle.</div>
+          </div>
+        </div>}
         <div className="stats-grid">
           <div className="stat-card"><div className="stat-big">{entries.length}</div><div className="stat-desc">Coffees logged</div></div>
           <div className="stat-card"><div className="stat-big">{overallAvg}</div><div className="stat-desc">Avg score / 10</div></div>
           <div className="stat-card"><div className="stat-big">{home}</div><div className="stat-desc">Home brews</div></div>
           <div className="stat-card"><div className="stat-big">{cafe}</div><div className="stat-desc">Café visits</div></div>
         </div>
+        {brewStats.hasData&&<div className="bar-card" style={{marginTop:16}}>
+          <div className="bar-card-title">Your Brew Numbers</div>
+          <div className="bar-card-sub">Averages across your {brewStats.homeCount} home brew{brewStats.homeCount===1?"":"s"}</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:20,marginTop:14}}>
+            {brewStats.avgDose!=null&&<div><div style={{fontFamily:"var(--mono)",fontSize:22,color:"var(--accent)"}}>{brewStats.avgDose.toFixed(1)}g</div><div style={{fontFamily:"var(--sans)",fontSize:11,color:"var(--ink3)",letterSpacing:"0.5px"}}>Avg dose</div></div>}
+            {brewStats.avgRatio!=null&&<div><div style={{fontFamily:"var(--mono)",fontSize:22,color:"var(--accent)"}}>1:{brewStats.avgRatio.toFixed(1)}</div><div style={{fontFamily:"var(--sans)",fontSize:11,color:"var(--ink3)",letterSpacing:"0.5px"}}>Avg ratio</div></div>}
+            {brewStats.avgTemp!=null&&<div><div style={{fontFamily:"var(--mono)",fontSize:22,color:"var(--accent)"}}>{Math.round(brewStats.avgTemp)}°</div><div style={{fontFamily:"var(--sans)",fontSize:11,color:"var(--ink3)",letterSpacing:"0.5px"}}>Avg temp</div></div>}
+            {brewStats.topMethod&&<div><div style={{fontFamily:"var(--serif)",fontSize:18,color:"var(--ink)",fontStyle:"italic",paddingTop:2}}>{brewStats.topMethod}</div><div style={{fontFamily:"var(--sans)",fontSize:11,color:"var(--ink3)",letterSpacing:"0.5px"}}>Go-to method</div></div>}
+          </div>
+        </div>}
         {sortedDims.length>0&&<div className="bar-card"><div className="bar-card-title">Avg Score by Dimension</div><div className="bar-card-sub">How you score each aspect across all coffees</div>
           {RATING_DIMS.map(d=>dimAvgs[d.id]!=null&&<div key={d.id} style={{display:"flex",alignItems:"center",gap:9,marginBottom:8}}>
             <div style={{width:68,fontSize:11,color:DIM_COLORS[d.id],fontFamily:"'Inter',sans-serif",fontWeight:500,flexShrink:0}}>{d.label}</div>
@@ -1936,7 +2001,7 @@ function StatsView({ entries, currentUser, isPro=false, onUpgrade }) {
 }
 
 // ─── ROASTERS VIEW ────────────────────────────────────────────────────────────
-function RoastersView({ palateProfile, onSelectRoaster }) {
+function RoastersView({ palateProfile, entries=[], onSelectRoaster }) {
   const [query,setQuery]=useState(""), [sortBy,setSortBy]=useState("match");
   const rl={light:"Light",light_med:"Lt-Med",medium:"Medium",med_dark:"Med-Dk",dark:"Dark"};
   const roasters=useMemo(()=>{
@@ -1955,9 +2020,30 @@ function RoastersView({ palateProfile, onSelectRoaster }) {
     return list;
   },[query,sortBy,palateProfile]);
   const topMatch=roasters[0];
+  const myRoasters=useMemo(()=>{
+    const map={};
+    entries.forEach(e=>{ if(!e.roaster)return; const k=e.roaster.trim(); if(!k)return;
+      if(!map[k]) map[k]={name:k,count:0,scoreSum:0,scoreN:0,coffees:new Set()};
+      map[k].count++; if(e.name)map[k].coffees.add(e.name.trim().toLowerCase());
+      const o=overallFromEntry(e); if(o){map[k].scoreSum+=o;map[k].scoreN++;} });
+    return Object.values(map).map(r=>({...r,coffeeCount:r.coffees.size,avg:r.scoreN?(r.scoreSum/r.scoreN):null}))
+      .sort((a,b)=>b.count-a.count);
+  },[entries]);
   return (
     <>
-      <div className="section-hdr"><div className="section-title">Roaster Discovery</div><div className="section-sub">Search by city, country, or name — matched to your palate</div></div>
+      {myRoasters.length>0&&<div style={{marginBottom:28}}>
+        <div style={{fontSize:11,letterSpacing:"2px",textTransform:"uppercase",color:"var(--accent)",fontWeight:600,fontFamily:"var(--sans)",marginBottom:14}}>Your roasters</div>
+        {myRoasters.map(r=>(
+          <div key={r.name} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 0",borderBottom:"1px solid var(--line)"}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontFamily:"var(--serif)",fontSize:17,color:"var(--ink)"}}>{r.name}</div>
+              <div style={{fontFamily:"var(--sans)",fontSize:12,color:"var(--ink3)",marginTop:1}}>{r.coffeeCount} coffee{r.coffeeCount===1?"":"s"} · {r.count} log{r.count===1?"":"s"}</div>
+            </div>
+            {r.avg!=null&&<div style={{fontFamily:"var(--serif)",fontSize:22,fontWeight:300,color:"var(--accent)",flexShrink:0}}>{r.avg.toFixed(1)}</div>}
+          </div>
+        ))}
+      </div>}
+      <div className="section-hdr"><div className="section-title">Discover roasters</div><div className="section-sub">Matched to your palate — explore beyond what you've logged</div></div>
       <div className="search-wrap"><span className="search-icon">⌕</span><input className="roaster-search" placeholder="London, Oslo, Melbourne…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
       <div className="filter-row" style={{marginBottom:14}}>{[["match","Best Match"],["rating","Top Rated"],["name","A–Z"]].map(([id,label])=><button key={id} className={`fchip ${sortBy===id?"active":""}`} onClick={()=>setSortBy(id)}>{label}</button>)}</div>
       {!query&&topMatch&&<div className="insight-banner" style={{marginBottom:12}}><div className="insight-title">Your top palate match: {topMatch.name}</div><div className="insight-body">{topMatch.score}% compatibility with your tasting profile. Based in {topMatch.city}, {topMatch.country}.</div></div>}
@@ -2822,6 +2908,8 @@ export default function MillionCoffees() {
   const [selRecipe,setSelRecipe]=useState(null);
   const [selRoaster,setSelRoaster]=useState(null);
   const [editEntry,setEditEntry]=useState(null);
+  const [badgeToast,setBadgeToast]=useState(null);
+  const prevBadgesRef=useRef(null);
 
   // ── Check for existing session on mount ──────────────────────────────
   useEffect(()=>{
@@ -3062,6 +3150,21 @@ export default function MillionCoffees() {
   };
 
   const myEntries=entries.filter(e=>e.userId==="me");
+
+  // Detect newly-earned badges and celebrate
+  useEffect(()=>{
+    if(!currentUser) return;
+    const badges=computeBadges(myEntries);
+    const earnedNames=badges.filter(b=>b.earned).map(b=>b.name);
+    if(prevBadgesRef.current===null){ prevBadgesRef.current=earnedNames; return; } // first run: baseline, no toast
+    const newly=earnedNames.filter(n=>!prevBadgesRef.current.includes(n));
+    prevBadgesRef.current=earnedNames;
+    if(newly.length>0){
+      const b=badges.find(x=>x.name===newly[0]);
+      setBadgeToast(b);
+      setTimeout(()=>setBadgeToast(null),4500);
+    }
+  },[myEntries,currentUser]);
   const publicEntries=publicFeed.length?publicFeed:entries.filter(e=>e.isPublic&&e.userId!=="me");
   const palateProfile=useMemo(()=>buildPalateProfile(myEntries),[myEntries]);
 
@@ -3163,12 +3266,24 @@ export default function MillionCoffees() {
             })}
           </>}
           {tab==="rankings"&&<div className="community-wrap"><RankingsView currentUser={currentUser}/></div>}
-          {tab==="roasters"&&<RoastersView palateProfile={palateProfile} onSelectRoaster={setSelRoaster}/>}
+          {tab==="roasters"&&<RoastersView palateProfile={palateProfile} entries={myEntries} onSelectRoaster={setSelRoaster}/>}
           {tab==="recipes"&&<><div className="section-hdr"><div className="section-title">Brew Recipes</div></div><div className="rec-grid">{RECIPES.map(r=><div key={r.id} className="rec-card" onClick={()=>setSelRecipe(r)}><span className="rec-icon">{r.icon}</span><div className="rec-name">{r.name}</div><div className="rec-meta">{r.ratio} · {r.time}</div><div className="rec-diff">{r.difficulty}</div></div>)}</div></>}
           {tab==="stats"&&<StatsView entries={myEntries} currentUser={currentUser} isPro={isPro} onUpgrade={()=>setShowPaywall(true)}/>}
         </div>
 
         {tab==="journal"&&<button className="fab" onClick={()=>setShowForm(true)}>+ Log a Coffee</button>}
+        {badgeToast&&(()=>{const color=GROUP_COLOR[badgeToast.group];return (
+          <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",zIndex:300,background:"var(--ink)",color:"var(--surface)",borderRadius:14,padding:"14px 20px",display:"flex",alignItems:"center",gap:14,boxShadow:"0 8px 30px rgba(26,18,8,0.3)",maxWidth:340,animation:"badgePop 0.4s ease"}}>
+            <div style={{width:44,height:44,borderRadius:"50%",flexShrink:0,border:`1.5px solid ${color}`,background:color,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <span style={{fontFamily:"var(--serif)",fontSize:20,fontStyle:"italic",color:"var(--surface)"}}>{badgeToast.name[0]}</span>
+            </div>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase",color,fontWeight:600,fontFamily:"var(--sans)"}}>Badge earned</div>
+              <div style={{fontFamily:"var(--serif)",fontSize:17,color:"var(--surface)",marginTop:1}}>{badgeToast.name}</div>
+            </div>
+            <button onClick={()=>setBadgeToast(null)} style={{background:"none",border:"none",color:"var(--ink3)",fontSize:18,cursor:"pointer",padding:0,marginLeft:4}}>×</button>
+          </div>
+        );})()}
         {showDiag&&<DiagnosticPanel currentUser={currentUser} onClose={()=>setShowDiag(false)}/>}
         {showPaywall&&<PaywallModal onClose={()=>setShowPaywall(false)} onUpgrade={async()=>{
           setIsPro(true);setShowPaywall(false);
