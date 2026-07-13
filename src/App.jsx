@@ -1845,6 +1845,16 @@ function BrewAnalyticsPanel({ entries }) {
   const activeCoffee=selCoffee||coffees[0]||null;
   const dialIn=brews.filter(b=>b.name&&b.name.trim()===activeCoffee).sort((a,b)=>new Date(a.date)-new Date(b.date));
   const scoreTrend=brews.slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).map(b=>({y:b.score}));
+  // Consistency signal: compare score spread (std dev) of earlier half vs recent half.
+  const consistency=useMemo(()=>{
+    const sorted=brews.slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).map(b=>b.score);
+    if(sorted.length<8) return null; // need enough brews to be meaningful
+    const std=arr=>{ const m=arr.reduce((s,x)=>s+x,0)/arr.length; return Math.sqrt(arr.reduce((s,x)=>s+(x-m)**2,0)/arr.length); };
+    const half=Math.floor(sorted.length/2);
+    const early=std(sorted.slice(0,half)), recent=std(sorted.slice(half));
+    const tighter=recent<early-0.15; const looser=recent>early+0.15;
+    return { early, recent, tighter, looser, n:sorted.length };
+  },[brews]);
 
   // Empty state
   if(brews.length===0) return (
@@ -1917,6 +1927,12 @@ function BrewAnalyticsPanel({ entries }) {
         <div style={{marginBottom:8,fontSize:11,letterSpacing:"1.5px",textTransform:"uppercase",color:"var(--ink3)",fontWeight:500}}>Score over time</div>
         <div style={{fontFamily:"var(--sans)",fontSize:12,color:"var(--ink3)",marginBottom:6}}>Each point is a home brew, oldest to newest.</div>
         <BrewLine points={scoreTrend}/>
+        {consistency&&(consistency.tighter||consistency.looser)&&(
+          <div style={{background:consistency.tighter?"rgba(110,123,94,0.12)":"var(--surface)",border:`1px solid ${consistency.tighter?"rgba(110,123,94,0.35)":"var(--line)"}`,borderRadius:12,padding:"14px 16px",marginTop:16}}>
+            <div style={{fontSize:10,letterSpacing:"1.5px",textTransform:"uppercase",color:consistency.tighter?"#6E7B5E":"var(--ink3)",fontWeight:600,marginBottom:6}}>Consistency</div>
+            <div style={{fontFamily:"var(--serif)",fontSize:15,color:"var(--ink)",lineHeight:1.5}}>{consistency.tighter?"Your scores are getting tighter — you're not just brewing better, you're brewing more reliably. That's real skill developing.":"Your recent scores are more varied than before — you may be experimenting more. Consistency will come as you settle on what works."}</div>
+          </div>
+        )}
         {methods.length>0&&<>
           <div style={{marginBottom:8,marginTop:24,fontSize:11,letterSpacing:"1.5px",textTransform:"uppercase",color:"var(--ink3)",fontWeight:500}}>By method</div>
           {methods.map(m=>{ const mb=brews.filter(b=>b.method===m); const avg=mb.reduce((s,b)=>s+b.score,0)/mb.length; return (
@@ -3292,19 +3308,21 @@ export default function MillionCoffees() {
 
   const myEntries=entries.filter(e=>e.userId==="me");
 
-  // Detect newly-earned badges and celebrate
+  // Detect newly-earned badges and celebrate — each badge celebrated at most once per session.
   useEffect(()=>{
     if(!currentUser) return;
     const badges=computeBadges(myEntries);
     const earnedNames=badges.filter(b=>b.earned).map(b=>b.name);
-    if(prevBadgesRef.current===null){ prevBadgesRef.current=earnedNames; return; } // first run: baseline, no toast
-    const newly=earnedNames.filter(n=>!prevBadgesRef.current.includes(n));
-    prevBadgesRef.current=earnedNames;
-    if(newly.length>0){
-      const b=badges.find(x=>x.name===newly[0]);
-      setBadgeToast(b);
-      setTimeout(()=>setBadgeToast(null),4500);
-    }
+    // First run: record everything already earned as a baseline; never celebrate these.
+    if(prevBadgesRef.current===null){ prevBadgesRef.current=new Set(earnedNames); return; }
+    const seen=prevBadgesRef.current;
+    // Only badges never seen before this session are "newly earned".
+    const newly=earnedNames.filter(n=>!seen.has(n));
+    if(newly.length===0) return;
+    // Mark them seen IMMEDIATELY so transient recomputes can't re-fire them.
+    newly.forEach(n=>seen.add(n));
+    const b=badges.find(x=>x.name===newly[0]);
+    if(b){ setBadgeToast(b); setTimeout(()=>setBadgeToast(null),4500); }
   },[myEntries,currentUser]);
   const publicEntries=publicFeed.length?publicFeed:entries.filter(e=>e.isPublic&&e.userId!=="me");
   const palateProfile=useMemo(()=>buildPalateProfile(myEntries),[myEntries]);
